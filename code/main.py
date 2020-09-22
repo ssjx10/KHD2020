@@ -111,6 +111,7 @@ def initialize_model(model_name, num_classes, use_pretrained=True):
         """
         model = models.resnet50(pretrained=use_pretrained)
         num_ftrs = model.fc.in_features
+        model.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         model.fc = nn.Linear(num_ftrs, num_classes)
         input_size = 224
         
@@ -140,7 +141,6 @@ class PathDataset(Dataset):
 
     def __getitem__(self, index): 
         im = cv2.imread(self.image_path[index])
-        im = im.reshape(3, im.shape[0], im.shape[1])
         
                 ### REQUIRED: PREPROCESSING ###
         if self.transform is not None:
@@ -239,7 +239,7 @@ if __name__ == '__main__':
     model, input_size = initialize_model(model_name, 2)
     model = model.to(device)
     
-    optimizer = optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
+    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
     # initialize
 #     nn.init.normal_(model.fc.weight, std=0.02)
 #     nn.init.normal_(model.fc.bias, 0)
