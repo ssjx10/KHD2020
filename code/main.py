@@ -23,6 +23,7 @@ from sklearn import metrics
 from itertools import chain
 from customEval import *
 
+input_size = 224
 ######################## DONOTCHANGE ###########################
 def bind_model(model):
     def save(dir_name):
@@ -38,7 +39,7 @@ def bind_model(model):
     def infer(image_path):
         result = []
         with torch.no_grad():             
-            batch_loader = DataLoader(dataset=PathDataset(image_path, labels=None),
+            batch_loader = DataLoader(dataset=PathDataset(image_path, labels=None, input_size=input_size),
                                         batch_size=batch_size,shuffle=False)
             # Train the model 
             for i, images in enumerate(batch_loader):
@@ -202,8 +203,6 @@ def sensi_speci(y_true, y_pred):
 
     return acc, sensitivity, specificity
 
-input_size = 224
-
 if __name__ == '__main__':
 
     ########## ENVIRONMENT SETUP ############
@@ -293,10 +292,10 @@ if __name__ == '__main__':
 
             train_loader = DataLoader(\
                 dataset=PathDataset(x_train, y_train, test_mode=False, mode='train', input_size=input_size), 
-                    batch_size=batch_size, shuffle=True, drop_last=True)
+                    batch_size=batch_size, shuffle=True, drop_last=True, num_workers=3)
             val_loader = DataLoader(\
                 dataset=PathDataset(x_val, y_val, test_mode=False, mode='val', input_size=input_size), 
-                    batch_size=batch_size, shuffle=False, drop_last=False)
+                    batch_size=batch_size, shuffle=False, drop_last=False, num_workers=3)
             train_num = train_loader.dataset.len
             val_num = val_loader.dataset.len
 
