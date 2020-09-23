@@ -20,6 +20,7 @@ from sklearn.model_selection import train_test_split
 from torch.optim.lr_scheduler import ExponentialLR
 from sklearn import metrics
 from itertools import chain
+from evaluation import *
 
 ######################## DONOTCHANGE ###########################
 def bind_model(model):
@@ -79,8 +80,8 @@ def make_transform(input_size, mode='train'):
     train_transform = Compose([
         ToPILImage(),
 #         RandomResizedCrop(input_size),
-        Resize(input_size + 32, BICUBIC),
-        RandomCrop(input_size),
+        Resize(input_size, BICUBIC),
+#         RandomCrop(input_size),
         RandomHorizontalFlip(),
         RandomVerticalFlip(),
         ToTensor(),
@@ -89,7 +90,7 @@ def make_transform(input_size, mode='train'):
 
     test_transform = Compose([
         ToPILImage(),
-        Resize(input_size),    
+        Resize(input_size, BICUBIC),    
         ToTensor(),
         Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
@@ -200,6 +201,8 @@ def sensi_speci(y_true, y_pred):
 
     return acc, sensitivity, specificity
 
+input_size = 224
+
 if __name__ == '__main__':
 
     ########## ENVIRONMENT SETUP ############
@@ -214,8 +217,8 @@ if __name__ == '__main__':
 
     # hyperparameters
     args.add_argument('--epoch', type=int, default=50)
-    args.add_argument('--batch_size', type=int, default=8) 
-    args.add_argument('--learning_rate', type=int, default=0.0001)
+    args.add_argument('--batch_size', type=int, default=64) 
+    args.add_argument('--learning_rate', type=int, default=0.001)
 
     config = args.parse_args()
     
@@ -239,14 +242,15 @@ if __name__ == '__main__':
     model, input_size = initialize_model(model_name, 2)
     model = model.to(device)
     
-    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+#     optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
     # initialize
 #     nn.init.normal_(model.fc.weight, std=0.02)
 #     nn.init.normal_(model.fc.bias, 0)
 
     # Loss and optimizer
     loss_ce = nn.CrossEntropyLoss()
-#     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+
 
     lr_sch = ExponentialLR(optimizer, gamma=0.975)
     
@@ -348,10 +352,11 @@ if __name__ == '__main__':
                 va_y = np.concatenate(va_y, 0)
                 va_pred = np.concatenate(va_pred, 0)
                 auc = metrics.roc_auc_score(va_y, va_pred)
-                ac, sensi, speci = sensi_speci(va_y, va_pred)
+                score = evaluation_metrics(va_y, va_pred)
 
-                print('Epoch [{}/{}], T_Loss: {:.4f}, T_Acc: {:.4f}, V_Loss: {:.4f}, V_Acc: {:.4f}, V_AUC: {:.4f},V_sen: {:.4f}, V_spe: {:.4f}'
-                        .format(epoch + 1, num_epochs, epoch_loss, tr_acc, va_loss, va_acc, auc, sensi, speci))
+                print(get_metrics(va_y, va_pred))
+                print('Epoch [{}/{}], T_Loss: {:.4f}, T_Acc: {:.4f}, V_Loss: {:.4f}, V_Acc: {:.4f}, V_AUC: {:.4f}, V_score: {:.4f}'
+                        .format(epoch + 1, num_epochs, epoch_loss, tr_acc, va_loss, va_acc, auc, score))
 
             lr_sch.step()
                 
