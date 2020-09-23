@@ -16,11 +16,12 @@ from torchvision.transforms import Compose, RandomCrop, Pad, RandomHorizontalFli
 from torchvision.transforms import ToPILImage, ToTensor, Normalize
 from torch.utils.data import Subset
 from PIL.Image import BICUBIC
+from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import train_test_split
 from torch.optim.lr_scheduler import ExponentialLR
 from sklearn import metrics
 from itertools import chain
-from evaluation import *
+from customEval import *
 
 ######################## DONOTCHANGE ###########################
 def bind_model(model):
@@ -114,7 +115,7 @@ def initialize_model(model_name, num_classes, use_pretrained=True):
         num_ftrs = model.fc.in_features
         model.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         model.fc = nn.Linear(num_ftrs, num_classes)
-        input_size = 224
+        input_size = 299
         
     elif model_name == "inception":
         """ Inception v3
@@ -216,149 +217,165 @@ if __name__ == '__main__':
     ######################################################################
 
     # hyperparameters
-    args.add_argument('--epoch', type=int, default=50)
+    args.add_argument('--epoch', type=int, default=25)
     args.add_argument('--batch_size', type=int, default=64) 
     args.add_argument('--learning_rate', type=int, default=0.001)
 
     config = args.parse_args()
     
     # set the seed
-    seed = 20
+    seed = 1993
     seed_everything(seed)
-
-    # training parameters
-    num_epochs = config.epoch
-    batch_size = config.batch_size
-    num_classes = 2
-    learning_rate = config.learning_rate 
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-
-    # model setting ## 반드시 이 위치에서 로드해야함
-#     modell = EfficientNet.from_pretrained('efficientnet-b0')
-    model_name = 'resnet'
-    is_inception = False
-    if model_name == 'inception':
-        is_inception = True
-    model, input_size = initialize_model(model_name, 2)
-    model = model.to(device)
     
-#     optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
-    # initialize
-#     nn.init.normal_(model.fc.weight, std=0.02)
-#     nn.init.normal_(model.fc.bias, 0)
-
-    # Loss and optimizer
-    loss_ce = nn.CrossEntropyLoss()
-
-
-    lr_sch = ExponentialLR(optimizer, gamma=0.975)
+    root_path = os.path.join(DATASET_PATH,'train')
+    image_keys, image_path = path_loader(root_path)
+    labels = np.array(label_loader(root_path, image_keys))
     
-    ############ DONOTCHANGE ###############
-    bind_model(model)
-    if config.pause: ## test mode 일때는 여기만 접근
-        print('Inferring Start...')
-        nsml.paused(scope=locals())
-    #######################################
-    
-    if config.mode == 'train': ### training mode 일때는 여기만 접근
-        print('Training Start...')
-
-        ############ DONOTCHANGE: Path loader ###############
-        root_path = os.path.join(DATASET_PATH,'train')
-        image_keys, image_path = path_loader(root_path)
-        labels = label_loader(root_path, image_keys)
-        ##############################################
+    # 5 Fold CV
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=seed)
+    for fold, (tr_idx, vl_idx) in enumerate(skf.split(image_path, labels), start=1):
+        print(f'Fold: {fold}\n')
         
-        # train_valid split
-        data_num = len(labels)
-        x_dummy = np.zeros(data_num,)
-        indices = np.arange(data_num)
-        x_train, x_val, y_train, y_val, idx1, idx2 = train_test_split(image_path, labels, indices, test_size=0.2, stratify=labels, random_state=20)
-         
-        train_loader = DataLoader(\
-            dataset=PathDataset(x_train, y_train, test_mode=False, mode='train', input_size=input_size), 
-                batch_size=batch_size, shuffle=True, drop_last=True)
-        val_loader = DataLoader(\
-            dataset=PathDataset(x_val, y_val, test_mode=False, mode='val', input_size=input_size), 
-                batch_size=batch_size, shuffle=False, drop_last=False)
-        train_num = train_loader.dataset.len
-        val_num = val_loader.dataset.len
-        
-        print_every = 1
-        # Train the model
-        for epoch in range(num_epochs):
-            epoch_loss = 0.0
-            tr_acc = 0.0
-            
-            model.train()
-            for j, (x_batch, y_batch) in enumerate(train_loader):
-                x_batch = x_batch.to(device)
-                y_batch = y_batch.to(device)
-                
-                # Forward pass
-                if is_inception:
-                    outputs, aux_outputs  = model(x_batch)
-                    loss1 = loss_ce(outputs, y_batch)
-                    loss2 = loss_ce(aux_outputs, y_batch)
-                    loss = loss1 + 0.4*loss2
-                else:
-                    outputs = model(x_batch)
-                    loss = loss_ce(outputs, y_batch)
-                    
-                pred_class = np.argmax(outputs.data.cpu().numpy(), axis=1)
-                
-                # Backward and optimize
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-                
-                epoch_loss += loss.item()
-                correct = len(np.where(pred_class == y_batch.cpu().data.numpy())[0])
-                tr_acc += correct
-            
-            epoch_loss /= len(train_loader)
-            tr_acc /= train_num
-            
-            va_loss = 0.0
-            va_acc = 0.0
+        # training parameters
+        num_epochs = config.epoch
+        batch_size = config.batch_size
+        num_classes = 2
+        learning_rate = config.learning_rate 
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-            va_y = []
-            va_pred = []
-            with torch.no_grad():
-                model.eval()
-                # Valid accuracy
-                for x_batch, y_batch in val_loader:
+        # model setting ## 반드시 이 위치에서 로드해야함
+        #     modell = EfficientNet.from_pretrained('efficientnet-b0')
+        print(f'Model setting')
+        model_name = 'resnet'
+        is_inception = False
+        if model_name == 'inception':
+            is_inception = True
+        model, input_size = initialize_model(model_name, 2)
+        model = model.to(device)
 
+        #     optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
+        # initialize
+        #     nn.init.normal_(model.fc.weight, std=0.02)
+        #     nn.init.normal_(model.fc.bias, 0)
+
+        # Loss and optimizer
+        loss_ce = nn.CrossEntropyLoss()
+
+        lr_sch = ExponentialLR(optimizer, gamma=0.975)
+
+        ############ DONOTCHANGE ###############
+        bind_model(model)
+        if config.pause: ## test mode 일때는 여기만 접근
+            print('Inferring Start...')
+            nsml.paused(scope=locals())
+        #######################################
+
+        if config.mode == 'train': ### training mode 일때는 여기만 접근
+            print('Training Start...')
+
+            ############ DONOTCHANGE: Path loader ###############
+            root_path = os.path.join(DATASET_PATH,'train')
+            image_keys, image_path = path_loader(root_path)
+            labels = label_loader(root_path, image_keys)
+            ##############################################
+            
+            labels = np.array(labels)
+            # train_valid split
+            data_num = len(labels)
+            indices = np.arange(data_num)
+        #         x_train, x_val, y_train, y_val, idx1, idx2 = train_test_split(image_path, labels, indices, test_size=0.2, stratify=labels, random_state=20)
+
+            # 5 Fold CV
+            print(f'Data Loading')
+            x_train, x_val = image_path[tr_idx], image_path[vl_idx]
+            y_train, y_val = labels[tr_idx], labels[vl_idx]
+
+            train_loader = DataLoader(\
+                dataset=PathDataset(x_train, y_train, test_mode=False, mode='train', input_size=input_size), 
+                    batch_size=batch_size, shuffle=True, drop_last=True)
+            val_loader = DataLoader(\
+                dataset=PathDataset(x_val, y_val, test_mode=False, mode='val', input_size=input_size), 
+                    batch_size=batch_size, shuffle=False, drop_last=False)
+            train_num = train_loader.dataset.len
+            val_num = val_loader.dataset.len
+
+            print_every = 1
+            # Train the model
+            for epoch in range(num_epochs):
+                epoch_loss = 0.0
+                tr_acc = 0.0
+
+                model.train()
+                for j, (x_batch, y_batch) in enumerate(train_loader):
                     x_batch = x_batch.to(device)
                     y_batch = y_batch.to(device)
 
-                    outputs = model(x_batch)
-                    loss = loss_ce(outputs, y_batch)
+                    # Forward pass
+                    if is_inception:
+                        outputs, aux_outputs  = model(x_batch)
+                        loss1 = loss_ce(outputs, y_batch)
+                        loss2 = loss_ce(aux_outputs, y_batch)
+                        loss = loss1 + 0.4*loss2
+                    else:
+                        outputs = model(x_batch)
+                        loss = loss_ce(outputs, y_batch)
 
-                    va_y.append(y_batch.cpu().data.numpy())
-                    va_pred.append(torch.softmax(outputs, 1).data.cpu().numpy()[:, 1])
+                    pred_class = np.argmax(outputs.data.cpu().numpy(), axis=1)
 
-                    pred = np.argmax(outputs.data.cpu().numpy(), axis=1)
+                    # Backward and optimize
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
 
-                    va_loss += loss.item()
-                    correct = len(np.where(pred == y_batch.cpu().data.numpy())[0])
-                    va_acc += correct
+                    epoch_loss += loss.item()
+                    correct = len(np.where(pred_class == y_batch.cpu().data.numpy())[0])
+                    tr_acc += correct
 
-                va_loss /= len(val_loader)
-                va_acc /= val_num
-                    
-            if (epoch + 1) % print_every == 0:
-                va_y = np.concatenate(va_y, 0)
-                va_pred = np.concatenate(va_pred, 0)
-                auc = metrics.roc_auc_score(va_y, va_pred)
-                score = evaluation_metrics(va_y, va_pred)
+                epoch_loss /= len(train_loader)
+                tr_acc /= train_num
 
-                print(get_metrics(va_y, va_pred))
-                print('Epoch [{}/{}], T_Loss: {:.4f}, T_Acc: {:.4f}, V_Loss: {:.4f}, V_Acc: {:.4f}, V_AUC: {:.4f}, V_score: {:.4f}'
-                        .format(epoch + 1, num_epochs, epoch_loss, tr_acc, va_loss, va_acc, auc, score))
+                va_loss = 0.0
+                va_acc = 0.0
 
-            lr_sch.step()
-                
-            nsml.report(summary=True, step=epoch, epoch_total=num_epochs, loss=loss.item())#, acc=train_acc)
-            nsml.save(epoch)
+                va_y = []
+                va_pred = []
+                with torch.no_grad():
+                    model.eval()
+                    # Valid accuracy
+                    for x_batch, y_batch in val_loader:
+
+                        x_batch = x_batch.to(device)
+                        y_batch = y_batch.to(device)
+
+                        outputs = model(x_batch)
+                        loss = loss_ce(outputs, y_batch)
+
+                        va_y.append(y_batch.cpu().data.numpy())
+                        va_pred.append(torch.softmax(outputs, 1).data.cpu().numpy()[:, 1])
+
+                        pred = np.argmax(outputs.data.cpu().numpy(), axis=1)
+
+                        va_loss += loss.item()
+                        correct = len(np.where(pred == y_batch.cpu().data.numpy())[0])
+                        va_acc += correct
+
+                    va_loss /= len(val_loader)
+                    va_acc /= val_num
+
+                if (epoch + 1) % print_every == 0:
+                    va_y = np.concatenate(va_y, 0)
+                    va_pred = np.concatenate(va_pred, 0)
+                    auc = metrics.roc_auc_score(va_y, va_pred)
+                    score = evaluation_metrics(va_y, va_pred)
+
+                    print(get_metrics(va_y, va_pred))
+                    print('Epoch [{}/{}], T_Loss: {:.4f}, T_Acc: {:.4f}, V_Loss: {:.4f}, V_Acc: {:.4f}, V_AUC: {:.4f}, V_score: {:.4f}'
+                            .format(epoch + 1, num_epochs, epoch_loss, tr_acc, va_loss, va_acc, auc, score))
+
+                lr_sch.step()
+
+                nsml.report(summary=True, step=epoch, epoch_total=num_epochs, loss=loss.item(), v_score=score)
+                nsml.save(str(fold) + '_'+ str(epoch))
+
+            print('')
