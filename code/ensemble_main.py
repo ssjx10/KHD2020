@@ -35,7 +35,7 @@ class Ensemble(nn.Module):
         
         p_ensemble = 0
         for i in range(self.nums):
-            p = self.model_list[i](x[0])
+            p = self.model_list[i](x[i])
             p = torch.softmax(p, 1).data.cpu()
             
             p_ensemble += p
@@ -223,6 +223,12 @@ def sensi_speci(y_true, y_pred):
 
     return acc, sensitivity, specificity
 
+def KLDiv(pred, targets, T=1):
+    logsoftmax = nn.LogSoftmax(dim=1)
+    softmax = nn.Softmax(dim=1)
+    soft_targets = softmax(targets/T)
+    return nn.KLDivLoss()(logsoftmax(pred), soft_targets)
+
 if __name__ == '__main__':
 
     ########## ENVIRONMENT SETUP ############
@@ -266,7 +272,7 @@ if __name__ == '__main__':
     model1, _ = initialize_model(model_name, 2)
     model1 = model1.to(device)
     bind_model(model1)
-    nsml.load(checkpoint='29', session='KHD005/Breast_Pathology/276')
+    nsml.load(checkpoint='6', session='KHD005/Breast_Pathology/276')
     model_list.append(model1)
     # model2
     model2, _ = initialize_model(model_name, 2)
@@ -286,7 +292,7 @@ if __name__ == '__main__':
     input_size = [331, 331, 339]
 
     #     optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.00005)
     # initialize
     #     nn.init.normal_(model.fc.weight, std=0.02)
     #     nn.init.normal_(model.fc.bias, 0)
@@ -393,12 +399,12 @@ if __name__ == '__main__':
                 with torch.no_grad():
                     model.eval()
                     # Valid accuracy
-                    for x_batch, y_batch in val_loader:
+                    for x_batch_list, y_batch in val_loader:
 
-                        x_batch = x_batch.to(device)
+                        x_batch_list = [x_batch_list[j].to(device) for j in range(len(x_batch_list))]
                         y_batch = y_batch.to(device)
 
-                        outputs = model(x_batch)
+                        outputs = model(x_batch_list)
                         loss = loss_ce(outputs, y_batch)
 
                         va_y.append(y_batch.cpu().data.numpy())
