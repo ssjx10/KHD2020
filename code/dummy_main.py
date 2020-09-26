@@ -19,6 +19,7 @@ from PIL.Image import BICUBIC
 from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import train_test_split
 from torch.optim.lr_scheduler import ExponentialLR
+import torch.nn.functional as F
 from sklearn import metrics
 from itertools import chain
 from customEval import *
@@ -87,14 +88,14 @@ def make_transform(input_size, mode='train'):
         RandomHorizontalFlip(),
         RandomVerticalFlip(),
         ToTensor(),
-        Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+#         Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
     test_transform = Compose([
         ToPILImage(),
         Resize(input_size, BICUBIC),    
         ToTensor(),
-        Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+#         Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
     
     if mode == 'train':
@@ -116,6 +117,7 @@ def initialize_model(model_name, num_classes, use_pretrained=True):
         num_ftrs = model.fc.in_features
         model.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         model.fc = nn.Linear(num_ftrs, num_classes)
+#         CLS(num_ftrs, num_classes, temp=0.05)
         input_size = 331
         
     elif model_name == "inception":
@@ -157,6 +159,21 @@ class PathDataset(Dataset):
 
     def __len__(self): 
         return self.len
+    
+class CLS(nn.Module): # classifier
+
+    def __init__(self, in_ch=2048, num_class=2, temp=1):
+        super().__init__()
+        
+        self.last = nn.Linear(in_ch, num_class)
+        self.temp = temp
+
+    def forward(self, x):
+        
+        x = F.normalize(x)
+        out = self.last(x) / self.temp
+        
+        return out
     
 def seed_everything(seed_value):
     random.seed(seed_value)
@@ -216,15 +233,15 @@ if __name__ == '__main__':
     ######################################################################
 
     # hyperparameters
-    args.add_argument('--epoch', type=int, default=30)
+    args.add_argument('--epoch', type=int, default=50)
     args.add_argument('--batch_size', type=int, default=64) 
     args.add_argument('--learning_rate', type=int, default=0.001)
 
     config = args.parse_args()
     
     # set the seed
-    seed = 1993
-    seed_everything(seed) 
+#     seed = 1993
+#     seed_everything(seed) 
         
     # training parameters
     num_epochs = config.epoch
@@ -240,7 +257,6 @@ if __name__ == '__main__':
     if model_name == 'inception':
         is_inception = True
     model, input_size = initialize_model(model_name, 2)
-    model.load_state_dict(torch.load('model/res50_pretrainL_34'))
     model = model.to(device)
     
     #     optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
@@ -265,7 +281,8 @@ if __name__ == '__main__':
         print('Training Start...')
         
         # model load
-#         nsml.load(checkpoint='1_21', session='KHD005/Breast_Pathology/263')
+#         nsml.load(checkpoint='29', session='KHD005/Breast_Pathology/276')
+#         nsml.load(checkpoint='14', session='KHD005/Breast_Pathology/321')
 #         nsml.save('buy_humanigen')
 #         exit()
         
@@ -281,7 +298,7 @@ if __name__ == '__main__':
         indices = np.arange(data_num)
         x_train, x_val, y_train, y_val, idx1, idx2 = train_test_split(image_path, labels, indices, test_size=0.2, stratify=labels, random_state=20)
 
-        # 5 Fold CV
+        # train_val
         print(f'Data Loading')
         use_split = False
         if use_split:
@@ -299,7 +316,7 @@ if __name__ == '__main__':
         else:
             train_loader = DataLoader(\
                 dataset=PathDataset(image_path, labels, test_mode=False, mode='train', input_size=input_size), 
-                    batch_size=batch_size, shuffle=True, drop_last=True, num_workers=8)
+                    batch_size=batch_size, shuffle=True, drop_last=True, num_workers=12)
             train_num = train_loader.dataset.len
         
 
@@ -389,7 +406,7 @@ if __name__ == '__main__':
                     score = evaluation_metrics(tr_y, tr_pred)
 
                     print(get_metrics(tr_y, tr_pred))
-                    print('Epoch [{}/{}], T_Loss: {:.4f}, T_Acc: {:.4f}, T_AUC: {:.4f}, T_score: {:.4f}'
+                    print('Epoch [{}/{}], T_Loss: {:.7f}, T_Acc: {:.7f}, T_AUC: {:.7f}, T_score: {:.7f}'
                             .format(epoch + 1, num_epochs, epoch_loss, tr_acc, auc, score))
 
             lr_sch.step()
