@@ -9,7 +9,7 @@ dummy_main.py
 - split validation or full train
 
 ensemble_main.py
-- inference ensemble
+- inference in ensemble model
 
 ensemble2_main.py
 - train a student models
