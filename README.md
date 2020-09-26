@@ -14,3 +14,6 @@ ensemble_main.py
 ensemble2_main.py
 - train a student models
 - ex) DML
+
+customEval.py
+- Accuracy, Specificity, Sensitivity, Precision, Negative Predictable value, F1 score
