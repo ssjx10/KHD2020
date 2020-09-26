@@ -17,3 +17,8 @@ ensemble2_main.py
 
 customEval.py
 - Accuracy, Specificity, Sensitivity, Precision, Negative Predictable value, F1 score
+
+nsml command
+- nsml run -d Breast_Pathology -e main.py --shm-size 16G
+- nsml model ls -j KHD005/Breast_Pathology/72
+- nsml submit KHD005/Breast_Pathology/72 6
