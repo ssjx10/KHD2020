@@ -1,6 +1,6 @@
 # KHD2020
 Korea Health Datathon 2020
-
+https://github.com/Korea-Health-Datathon/KHD2020
 
 main.py
 - 5 Fold CV
