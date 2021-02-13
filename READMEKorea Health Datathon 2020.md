@@ -43,7 +43,7 @@ Accuracy, Specificity, Sensitivity, Precision (PPV), Negative predictable value 
 # Code
 
 main.py
--5 Fold CV
+- 5 Fold CV
 
 dummy_main.py
 - split validation or full train
