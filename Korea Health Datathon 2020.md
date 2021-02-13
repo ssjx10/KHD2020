@@ -1,12 +1,6 @@
 # Korea Health Datathon 2020
 
-Project 예선 기간: 2020년 9월 21일 → 2020년 9월 25일
-상태: 완료
-이해관계자: 오영택 성균관대학교, 승완 정
-작성일시: 2021년 1월 8일 오후 10:18
-작성자: 승완 정
-최종 편집일시: 2021년 1월 9일 오후 3:28
-최종 편집자: 승완 정
+Project 기간: 2020년 9월 21일 → 2020년 9월 25일
 
 [Korea-Health-Datathon/KHD2020](https://github.com/Korea-Health-Datathon/KHD2020)
 
@@ -26,7 +20,7 @@ Train Data의 수 : 양성 5,600장 / 음성 2,400장
 
 Test Data의 수 : 양성 1,400장 / 음성 600장
 
-![Korea%20Health%20Datathon%202020%20a6a400c4fabc4f41accae5245596f762/Untitled.png](Korea%20Health%20Datathon%202020%20a6a400c4fabc4f41accae5245596f762/Untitled.png)
+![Korea%20Health%20Datathon%202020%20a6a400c4fabc4f41accae5245596f762/Untitled.png](image/Untitled.png)
 
 # 평가 지표
 
@@ -49,23 +43,21 @@ Accuracy, Specificity, Sensitivity, Precision (PPV), Negative predictable value 
 # Code
 
 main.py
+-5 Fold CV
 
-5 Fold CV
 dummy_main.py
-
-split validation or full train
+- split validation or full train
 ensemble_main.py
+- inference in ensemble model
 
-inference in ensemble model
 ensemble2_main.py
-
-train a student models
+- train a student models
 ex) DML
+
 customEval.py
+- Accuracy, Specificity, Sensitivity, Precision, Negative Predictable value, F1 score
 
-Accuracy, Specificity, Sensitivity, Precision, Negative Predictable value, F1 score
 nsml command
-
-nsml run -d Breast_Pathology -e main.py --shm-size 16G
-nsml model ls -j KHD005/Breast_Pathology/72
-nsml submit KHD005/Breast_Pathology/72 6
+- nsml run -d Breast_Pathology -e main.py --shm-size 16G
+- nsml model ls -j KHD005/Breast_Pathology/72
+- nsml submit KHD005/Breast_Pathology/72 6
